@@ -1,0 +1,33 @@
+# node_modules
+node_modules/
+
+# Android
+build/
+*.iml
+.gradle
+local.properties
+*.keystore
+!debug.keystore
+
+# iOS (if applicable)
+*.xcworkspace
+*.xcodeproj
+Podfile.lock
+DerivedData/
+
+# Go
+bin/
+vendor/
+
+# Environment Variables
+.env
+.env.local
+
+# Build artifacts
+*.apk
+*.aab
+*.hprof
+
+# OS files
+.DS_Store
+Thumbs.db

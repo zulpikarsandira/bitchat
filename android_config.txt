@@ -1,0 +1,33 @@
+// --- android/app/build.gradle Configuration ---
+
+// 1. Add flatDir repository in the root android block or here
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+// 2. Add dependencies
+dependencies {
+    // ... other RN dependencies
+    
+    // Import the Go Core Library
+    implementation(name: 'chatengine', ext: 'aar')
+    
+    // Optional: needed if you use specific Java types from Go
+    // implementation files('libs/chatengine-sources.jar')
+}
+
+// --- android/app/src/main/java/com/bitchat/MainApplication.java ---
+/*
+    @Override
+    protected List<ReactPackage> getPackages() {
+      @SuppressWarnings("UnusedDeclaration")
+      List<ReactPackage> packages = new PackageList(this).getPackages();
+      
+      // Manual registration of our custom bridge
+      packages.add(new com.bitchat.bridge.ChatEnginePackage()); 
+      
+      return packages;
+    }
+*/

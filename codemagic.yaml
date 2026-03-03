@@ -1,0 +1,25 @@
+workflows:
+  android-workflow:
+    name: Android Workflow
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    environment:
+      groups:
+        - signing_keys # Setup these in CodeMagic UI
+      vars:
+        PACKAGE_NAME: "com.bitchat"
+      node: 18
+      java: 17
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Build Android APK
+        script: |
+          cd android && ./gradlew assembleDebug
+    artifacts:
+      - android/app/build/outputs/apk/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - zulpikarsandira@gmail.com # Replace with your email
