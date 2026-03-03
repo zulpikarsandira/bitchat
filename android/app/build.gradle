@@ -13,6 +13,30 @@ android {
         versionName "1.0"
     }
 
+    react {
+        /* Folders */
+        //   The root of your project, i.e. where "package.json" lives. Default is '..'
+        // root = file("../")
+        //   The folder where the react-native package is. Default is ../node_modules/react-native
+        // reactNativeDir = file("../node_modules/react-native")
+        //   The gradle-plugin shell script. Default is ../node_modules/@react-native/gradle-plugin/react-native-gradle-helper.js
+        // codegenDir = file("../node_modules/@react-native/gradle-plugin")
+        //   The entry file for bundle isolation. Default is index.android.js or index.js
+        // entryFile = file("../index.js")
+
+        /* Variants */
+        //   The list of variants to build. Default is ['debug', 'release']
+        // debuggableVariants = ["debug"]
+
+        /* Bundling */
+        //   A list of extra flags to pass to the "bundle" commands.
+        //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
+        // extraPackagerArgs = []
+
+        /* Hermes */
+        enableHermes = (findProperty('hermesEnabled') ?: 'true').toBoolean()
+    }
+
     buildFeatures {
         buildConfig true
     }
