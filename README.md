@@ -1,167 +1,60 @@
-# BitChat — Go Core Engine
+# BitChat — Secure Offline Messaging
 
-Paket Go inti (`chatengine`) untuk aplikasi chat offline BitChat berbasis BLE.
+**BitChat** adalah aplikasi pengiriman pesan revolusioner yang bekerja sepenuhnya secara **offline**. Menggunakan teknologi Bluetooth Low Energy (BLE), BitChat memungkinkan pengguna untuk berkomunikasi tanpa internet, tanpa kuota, dan tanpa ketergantungan pada server pusat.
 
-## Struktur Proyek
+---
+
+## 🚀 Fitur Utama
+
+- **Pesan Offline Terenkripsi**: Kirim dan terima pesan teks tanpa koneksi internet sama sekali.
+- **Auto-Discovery**: HP akan otomatis mendeteksi perangkat lain di sekitar yang menjalankan BitChat.
+- **Peer-to-Peer (P2P)**: Komunikasi langsung antar perangkat lewat sinyal radio Bluetooth.
+- **Local History**: Semua pesan disimpan secara aman di perangkat lokal dalam format JSON terstruktur.
+- **Low Energy Consumption**: Menggunakan BLE agar baterai tetap awet meskipun aplikasi aktif mencari teman di sekitar.
+
+## 🛡️ Teknologi Keamanan (Military Grade)
+
+Privasi adalah pondasi BitChat. Kami menggunakan kombinasi teknologi kriptografi modern:
+
+- **AES-256-GCM**: Standar enkripsi tingkat militer untuk melindungi isi pesan. Setiap pesan memiliki *nonce* unik untuk mencegah serangan replay.
+- **ECDH (Elliptic Curve Diffie-Hellman)**: Digunakan untuk pertukaran kunci secara aman lewat udara (*Key Exchange*) agar kunci rahasia tidak pernah dikirim secara langsung.
+- **SHA-256 Checksum**: Setiap paket data divalidasi integritasnya menggunakan hash SHA-256 untuk memastikan data tidak rusak atau dimanipulasi saat transmisi.
+- **No Metadata Privacy**: Karena tidak ada server pusat, data metadata Anda tidak pernah terpusat di satu tempat.
+
+## 🛠️ Tech Stack
+
+### Mobile Frontend
+- **React Native (v0.72.6)**: Framework utama untuk antarmuka yang responsif.
+- **React Native BLE Manager**: Untuk menangani *scanning* perangkat di sekitar.
+- **Native Bridge (Java)**: Jembatan penghubung antara JavaScript dan core engine Go.
+
+### Core Engine (The Brain)
+- **Go (Golang)**: Digunakan untuk logika komputasi berat, enkripsi, dan manajemen paket data.
+- **Gomobile**: Teknologi yang memungkinkan library Go di-*compile* menjadi file AAR Android untuk performa maksimal.
+
+---
+
+## 🏗️ Struktur Proyek
 
 ```
 bitchat/
-├── go.mod
-└── chatengine/
-    ├── engine.go        ← Kode utama
-    └── engine_test.go   ← Unit tests
+├── chatengine/         ← Core Logic (Go)
+├── android/            ← Native Android Wrapper (Java)
+├── src/
+│   ├── screens/        ← UI & Logic (React Native)
+│   └── bridge/         ← Native Modules Connectivity
+└── README.md
 ```
 
-## Fungsi-Fungsi Utama
+## 🧪 Cara Pengujian
 
-| Fungsi | Keterangan |
-|--------|-----------|
-| `Encrypt(text, secret)` | Enkripsi AES-256-GCM → base64 string |
-| `Decrypt(b64, secret)` | Dekripsi → plaintext string |
-| `CreatePacket(text, secret, type)` | Buat JSON Packet terenkripsi |
-| `ParsePacket(json, secret)` | Dekripsi & validasi Packet |
-| `GetPacketType(json)` | Baca tipe packet tanpa dekripsi |
-| `VerifyChecksum(json, secret)` | Verifikasi integritas data |
-| `SliceData(data)` | Fragmentasi → JSON array 20-byte chunks |
-| `ReassembleData(chunksJSON)` | Rekonstruksi dari chunks |
-| `SliceAndEncryptPacket(text, secret, type)` | Helper: enkripsi + fragmentasi |
-| `ReassembleAndDecryptPacket(chunksJSON, secret)` | Helper: reassemble + dekripsi |
-| `DeriveKey(secret)` | SHA-256 → 32-byte AES key |
-| `Version()` | Versi library |
+1. **Jalankan Build**: Build aplikasi ke dua perangkat Android berbeda (disarankan menggunakan APK versi Release).
+2. **Aktifkan Bluetooth & Lokasi**: BitChat memerlukan kedua layanan ini untuk melihat perangkat di sekitar.
+3. **Klik SCAN**: Satu HP menekan tombol SCAN, HP lainnya akan muncul di daftar.
+4. **Mulai Chat**: Pesan akan terenkripsi di HP asal, dipecah menjadi fragmen-fragmen kecil, dikirim via Bluetooth, dan didekripsi kembali di HP tujuan.
 
-## PacketType Constants
+---
 
-```
-PacketTypeMessage   = "MESSAGE"
-PacketTypeFile      = "FILE"
-PacketTypeHandshake = "HANDSHAKE"
-```
-
-## Menjalankan Tests
-
-```bash
-cd /home/zulpikar/Documents/bitchat
-go test ./chatengine/... -v
-```
-
-## Build AAR untuk Android (Gomobile)
-
-```bash
-# Install Gomobile (sekali saja)
-go install golang.org/x/mobile/cmd/gomobile@latest
-gomobile init
-
-# Generate AAR
-cd /home/zulpikar/Documents/bitchat
-gomobile bind \
-  -target=android \
-  -javapkg=com.bitchat.engine \
-  -o chatengine.aar \
-  ./chatengine/
-```
-
-## Integrasi React Native
-
-### 1. Salin AAR
-
-```
-YourReactNativeApp/android/app/libs/
-├── chatengine.aar
-└── chatengine-sources.jar
-```
-
-### 2. `android/app/build.gradle`
-
-```groovy
-repositories {
-    flatDir { dirs 'libs' }
-}
-
-dependencies {
-    implementation(name: 'chatengine', ext: 'aar')
-}
-```
-
-### 3. Native Module Java
-
-```java
-// android/app/src/main/java/com/yourapp/ChatEngineModule.java
-package com.yourapp;
-
-import com.facebook.react.bridge.*;
-import chatengine.Chatengine;
-
-public class ChatEngineModule extends ReactContextBaseJavaModule {
-    ChatEngineModule(ReactApplicationContext context) { super(context); }
-
-    @Override public String getName() { return "ChatEngine"; }
-
-    @ReactMethod
-    public void encrypt(String text, String secret, Promise promise) {
-        promise.resolve(Chatengine.encrypt(text, secret));
-    }
-
-    @ReactMethod
-    public void decrypt(String ciphertext, String secret, Promise promise) {
-        promise.resolve(Chatengine.decrypt(ciphertext, secret));
-    }
-
-    @ReactMethod
-    public void createPacket(String text, String secret, String type, Promise promise) {
-        promise.resolve(Chatengine.createPacket(text, secret, type));
-    }
-
-    @ReactMethod
-    public void parsePacket(String json, String secret, Promise promise) {
-        promise.resolve(Chatengine.parsePacket(json, secret));
-    }
-
-    @ReactMethod
-    public void sliceData(String data, Promise promise) {
-        promise.resolve(Chatengine.sliceData(data));
-    }
-
-    @ReactMethod
-    public void reassembleData(String chunksJSON, Promise promise) {
-        promise.resolve(Chatengine.reassembleData(chunksJSON));
-    }
-}
-```
-
-### 4. Daftarkan Module di `MainApplication.java`
-
-```java
-@Override
-protected List<ReactPackage> getPackages() {
-    return Arrays.<ReactPackage>asList(
-        new MainReactPackage(),
-        new ChatEnginePackage()   // ← tambahkan ini
-    );
-}
-```
-
-### 5. Panggil dari JavaScript
-
-```javascript
-import { NativeModules } from 'react-native';
-const { ChatEngine } = NativeModules;
-
-// Enkripsi pesan
-const encrypted = await ChatEngine.encrypt("Halo!", "shared-secret");
-
-// Dekripsi pesan
-const decrypted = await ChatEngine.decrypt(encrypted, "shared-secret");
-
-// Kirim via BLE (fragmentasi)
-const chunks = await ChatEngine.sliceData(encrypted);
-// → kirim chunk per chunk via BLE write characteristic
-
-// Terima dari BLE (reassemble)
-const full = await ChatEngine.reassembleData(receivedChunksJSON);
-const message = await ChatEngine.parsePacket(full, "shared-secret");
-```
-
-## Notes
-
-- Shared secret saat ini adalah placeholder statis. Phase 2 akan mengimplementasikan ECDH key exchange via BLE Handshake packet.
-- Error selalu dikembalikan sebagai string dengan prefix `"ERROR:"` untuk kompatibilitas Gomobile.
+## 📜 Lisensi & Versi
+**Version**: `1.1.0 (BLE Advertising Update)`  
+BitChat adalah proyek open-source untuk mendemonstrasikan kekuatan komunikasi P2P yang aman.
