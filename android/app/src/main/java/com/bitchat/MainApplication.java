@@ -41,7 +41,7 @@ public class MainApplication extends Application implements ReactApplication {
 
         @Override
         protected Boolean isHermesEnabled() {
-            return false;
+            return true;
         }
     };
 
