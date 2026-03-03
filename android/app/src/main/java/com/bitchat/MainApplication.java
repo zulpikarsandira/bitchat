@@ -38,11 +38,6 @@ public class MainApplication extends Application implements ReactApplication {
         protected boolean isNewArchEnabled() {
             return BuildConfig.IS_NEW_ARCHITECTURE_ENABLED;
         }
-
-        @Override
-        protected Boolean isFabricEnabled() {
-            return BuildConfig.IS_NEW_ARCHITECTURE_ENABLED;
-        }
     };
 
     @Override
