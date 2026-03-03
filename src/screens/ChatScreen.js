@@ -54,7 +54,17 @@ const ChatScreen = () => {
         PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        ]);
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+        ]).then(() => {
+          // Start advertising after permissions granted
+          ChatEngine.startAdvertising()
+            .then(() => console.log('BLE Advertising started'))
+            .catch(err => console.error('BLE Advertising failed:', err));
+        });
+      } else {
+        // For older Android versions, start advertising immediately if Bluetooth is on
+        ChatEngine.startAdvertising()
+          .catch(err => console.log('Adv start skip or fail:', err));
       }
     }
 
@@ -63,6 +73,11 @@ const ChatScreen = () => {
       { id: '1', text: 'Halo! Selamat datang di BitChat.', sender: 'them', time: '20:00' },
       { id: '2', text: 'Tekan "Scan" di atas untuk mencari teman chat.', sender: 'them', time: '20:01' },
     ]);
+
+    return () => {
+      // Stop advertising when screen unmounts
+      ChatEngine.stopAdvertising().catch(() => { });
+    };
   }, []);
 
   const loadHistory = async () => {
@@ -103,7 +118,8 @@ const ChatScreen = () => {
     if (status === 'Scanning') return;
 
     setStatus('Scanning');
-    BleManager.scan([], 5, true)
+    // Scan for BitChat devices using the specific service UUID
+    BleManager.scan(['fee0'], 5, true)
       .then(() => {
         console.log('Scan started');
         setTimeout(() => setStatus('Offline'), 5000);
