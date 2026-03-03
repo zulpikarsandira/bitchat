@@ -34,7 +34,7 @@ android {
         // extraPackagerArgs = []
 
         /* Hermes */
-        // No need to set here, it will use hermesEnabled from gradle.properties
+        hermesEnabled = false
     }
 
     buildFeatures {
