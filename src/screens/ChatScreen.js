@@ -11,32 +11,38 @@ import {
   SafeAreaView,
   StatusBar,
   NativeModules,
+  NativeEventEmitter,
   RefreshControl,
   PermissionsAndroid,
   Alert,
 } from 'react-native';
 import BleManager from 'react-native-ble-manager';
 
-
 const { ChatEngine } = NativeModules;
+const chatEngineEmitter = new NativeEventEmitter(ChatEngine);
+const bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager);
 
-// Simulate a shared secret for Phase 1
+// Shared secret for Phase 1 (placeholder)
 const SHARED_SECRET = 'bitchat-shared-secret-placeholder';
+
+const SERVICE_UUID = 'fee0';
+const CHARACTERISTIC_UUID = 'fee1';
 
 const ChatScreen = ({ onNavigateToSettings }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
-  const [status, setStatus] = useState('Offline'); // Scanning, Connected, Offline
+  const [status, setStatus] = useState('Offline'); // Scanning, Connecting, Connected, Offline
   const [devices, setDevices] = useState([]);
-  const [activeSecret, setActiveSecret] = useState(SHARED_SECRET);
   const [refreshing, setRefreshing] = useState(false);
+  const [receivedChunks, setReceivedChunks] = useState([]);
   const flatListRef = useRef(null);
 
-  const HISTORY_PATH = Platform.OS === 'android' ? '/data/user/0/com.bitchat/files/chat_history.json' : 'history.json';
-
+  const HISTORY_PATH =
+    Platform.OS === 'android'
+      ? '/data/user/0/com.bitchat/files/chat_history.json'
+      : 'history.json';
 
   useEffect(() => {
-    // Load Local History from Go Engine
     loadHistory();
 
     // 1. Initialize BLE Manager
@@ -44,40 +50,69 @@ const ChatScreen = ({ onNavigateToSettings }) => {
 
     // 2. Request Android Permissions
     if (Platform.OS === 'android' && Platform.Version >= 23) {
-      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION).then((result) => {
-        if (!result) {
-          PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-        }
-      });
-      // Bluetooth permissions for API 31+
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION).then(
+        result => {
+          if (!result) {
+            PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+          }
+        },
+      );
       if (Platform.Version >= 31) {
         PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
         ]).then(() => {
-          // Start advertising after permissions granted
           ChatEngine.startAdvertising()
             .then(() => console.log('BLE Advertising started'))
             .catch(err => console.error('BLE Advertising failed:', err));
         });
       } else {
-        // For older Android versions, start advertising immediately if Bluetooth is on
-        ChatEngine.startAdvertising()
-          .catch(err => console.log('Adv start skip or fail:', err));
+        ChatEngine.startAdvertising().catch(err =>
+          console.log('Adv start skip or fail:', err),
+        );
       }
     }
 
+    // 3. Setup BLE Event Listeners
+    const handlerDiscover = bleManagerEmitter.addListener(
+      'BleManagerDiscoverPeripheral',
+      handleDiscoverPeripheral,
+    );
+
+    const handlerStop = bleManagerEmitter.addListener('BleManagerStopScan', () => {
+      console.log('Scan stopped');
+      setStatus(prev => (prev === 'Scanning' ? 'Offline' : prev));
+    });
+
+    const handlerData = chatEngineEmitter.addListener('onDataReceived', data => {
+      console.log('Data received via GATT:', data);
+      handleIncomingChunk(data);
+    });
+
+    const handlerDisconnect = bleManagerEmitter.addListener(
+      'BleManagerDisconnectPeripheral',
+      () => {
+        console.log('Disconnected');
+        setStatus('Offline');
+        setDevices([]);
+      },
+    );
+
     // Initial dummy data
     setMessages([
-      { id: '1', text: 'Halo! Selamat datang di BitChat.', sender: 'them', time: '20:00' },
-      { id: '2', text: 'Tekan "Scan" di atas untuk mencari teman chat.', sender: 'them', time: '20:01' },
+      { id: '1', text: 'Halo! Selamat datang di Locbit.', sender: 'them', time: '00:00' },
+      { id: '2', text: 'Tekan "SCAN" di atas untuk mencari teman chat.', sender: 'them', time: '00:01' },
     ]);
 
     return () => {
-      // Stop advertising when screen unmounts
       ChatEngine.stopAdvertising().catch(() => { });
+      handlerDiscover.remove();
+      handlerStop.remove();
+      handlerData.remove();
+      handlerDisconnect.remove();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadHistory = async () => {
@@ -85,12 +120,14 @@ const ChatScreen = ({ onNavigateToSettings }) => {
       const historyStr = await ChatEngine.getHistory(HISTORY_PATH);
       const history = JSON.parse(historyStr);
       if (history && history.length > 0) {
-        // Map Go Message struct to UI format
         const mapped = history.map(m => ({
           id: m.id,
           text: m.text,
           sender: m.sender,
-          time: new Date(m.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          time: new Date(m.timestamp * 1000).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
         }));
         setMessages(mapped);
       }
@@ -99,44 +136,70 @@ const ChatScreen = ({ onNavigateToSettings }) => {
     }
   };
 
-  const connectToDevice = async (device) => {
-    setStatus('Connecting');
-    // 1. Start Handshake (Generate ECDH KeyPair)
-    const kpJSON = await ChatEngine.generateKeyPair();
-    const kp = JSON.parse(kpJSON);
-
-    // 2. Simulate Exchange (Real BLE: Send kp.public to remote)
-    console.log('My Public Key:', kp.public);
-
-    // 3. For Demo: Set Connected
-    setStatus('Connected');
-    setActiveSecret('dynamic-handshake-secret-demo'); // In real app, compute from remote public
+  // Handles a raw chunk arriving from GATT – accumulates until we have a full JSON packet
+  const handleIncomingChunk = chunk => {
+    setReceivedChunks(prev => {
+      const newChunks = [...prev, chunk];
+      const fullString = newChunks.join('');
+      if (fullString.endsWith('}')) {
+        handleIncomingBluetoothData(JSON.stringify(newChunks));
+        return [];
+      }
+      return newChunks;
+    });
   };
 
+  // Auto-connect when a peer advertising our service is discovered
+  const handleDiscoverPeripheral = peripheral => {
+    if (!peripheral || !peripheral.advertising || !peripheral.advertising.serviceUUIDs) {
+      return;
+    }
+    const serviceUUIDs = peripheral.advertising.serviceUUIDs.map(u => u.toLowerCase());
+    if (serviceUUIDs.includes(SERVICE_UUID)) {
+      console.log('Found Locbit peer:', peripheral.name, peripheral.id);
+      setStatus(current => {
+        if (current !== 'Connected' && current !== 'Connecting') {
+          connectToDevice(peripheral);
+        }
+        return current;
+      });
+    }
+  };
+
+  const connectToDevice = async device => {
+    try {
+      setStatus('Connecting');
+      console.log('Connecting to:', device.id);
+      await BleManager.connect(device.id);
+      console.log('Connected to:', device.id);
+      await BleManager.retrieveServices(device.id);
+      console.log('Services retrieved');
+      setDevices([device]);
+      setStatus('Connected');
+    } catch (error) {
+      console.error('Connection failed:', error);
+      setStatus('Offline');
+    }
+  };
 
   const handleScan = () => {
     if (status === 'Scanning') return;
 
     setStatus('Scanning');
-    // Scan for BitChat devices using the specific service UUID
-    BleManager.scan(['fee0'], 5, true)
+    setDevices([]);
+    BleManager.scan([SERVICE_UUID], 10, true)
       .then(() => {
         console.log('Scan started');
-        setTimeout(() => setStatus('Offline'), 5000);
       })
-      .catch((err) => {
+      .catch(err => {
         Alert.alert('Scan Failed', err.toString());
         setStatus('Offline');
       });
   };
 
-
   const onRefresh = () => {
     setRefreshing(true);
-    // Simulate loading history
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1500);
+    setTimeout(() => setRefreshing(false), 1500);
   };
 
   const handleSend = async () => {
@@ -146,18 +209,17 @@ const ChatScreen = ({ onNavigateToSettings }) => {
     const now = new Date();
     const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-    // --- INTEGRATION WITH GO CORE (PHASE 1 Logic) ---
     try {
-      // 1. Encrypt message using Go library via NativeBridge
+      // 1. Encrypt via Go engine
       const encrypted = await ChatEngine.encrypt(inputText, SHARED_SECRET);
       console.log('Encrypted message from Go:', encrypted);
 
-      // 2. Fragment data if needed (simulated for BLE transport)
+      // 2. Fragment for BLE
       const chunksStr = await ChatEngine.sliceData(encrypted);
       const chunks = JSON.parse(chunksStr);
       console.log(`Sliced into ${chunks.length} chunks for BLE transmission`);
 
-      // 3. Update local UI immediately
+      // 3. Update local UI
       const myMessage = {
         id: newMessageId,
         text: inputText,
@@ -165,36 +227,33 @@ const ChatScreen = ({ onNavigateToSettings }) => {
         time: timeString,
         isEncrypted: true,
       };
-
-      setMessages((prev) => [...prev, myMessage]);
+      setMessages(prev => [...prev, myMessage]);
       setInputText('');
 
-      // 4. PERSIST TO GO LOCAL STORAGE
+      // 4. Persist locally
       await ChatEngine.storeMessage(HISTORY_PATH, inputText, 'me');
 
-      // Auto-scroll to bottom
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
-
-      // --- BLE TRANSMISSION LOGIC (Placeholder for react-native-ble-manager) ---
-      // chunks.forEach(chunk => BluetoothClient.write(chunk));
-
+      // 5. Transmit via BLE (if connected)
+      if (status === 'Connected' && devices.length > 0) {
+        const deviceId = devices[0].id;
+        for (const chunk of chunks) {
+          const bytes = Array.from(Buffer.from(chunk, 'utf8'));
+          await BleManager.write(deviceId, SERVICE_UUID, CHARACTERISTIC_UUID, bytes);
+          console.log('Chunk sent:', chunk);
+        }
+      } else {
+        console.log('Not connected – message stored locally only');
+      }
     } catch (error) {
       console.error('Core Engine Error:', error);
-      setStatus('Offline');
     }
   };
 
-  /**
-   * Mock listener for incoming Bluetooth data
-   * This is how we would use the Go engine to reassemble and decrypt
-   */
-  const handleIncomingBluetoothData = async (receivedChunksJSON) => {
+  const handleIncomingBluetoothData = async receivedChunksJSON => {
     try {
-      // 1. Reassemble chunks into one JSON Packet string
       const fullPacketJSON = await ChatEngine.reassembleData(receivedChunksJSON);
-
-      // 2. Decrypt and verify checksum in one go using ParsePacket
       const plaintext = await ChatEngine.parsePacket(fullPacketJSON, SHARED_SECRET);
 
       if (plaintext.startsWith('ERROR:')) {
@@ -202,20 +261,16 @@ const ChatScreen = ({ onNavigateToSettings }) => {
         return;
       }
 
-      // 3. Update UI
       const incomingMsg = {
         id: Date.now().toString(),
         text: plaintext,
         sender: 'them',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setMessages((prev) => [...prev, incomingMsg]);
+      setMessages(prev => [...prev, incomingMsg]);
 
-      // 4. PERSIST TO GO LOCAL STORAGE
       await ChatEngine.storeMessage(HISTORY_PATH, plaintext, 'them');
-
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-
     } catch (e) {
       console.error('Incoming message error:', e);
     }
@@ -245,25 +300,38 @@ const ChatScreen = ({ onNavigateToSettings }) => {
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>Locbit Offline</Text>
           <View style={styles.statusContainer}>
-            <View style={[styles.statusDot, { backgroundColor: status === 'Connected' ? '#25D366' : status === 'Scanning' ? '#FFD700' : '#FF3B30' }]} />
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor:
+                    status === 'Connected'
+                      ? '#25D366'
+                      : status === 'Scanning' || status === 'Connecting'
+                        ? '#FFD700'
+                        : '#FF3B30',
+                },
+              ]}
+            />
             <Text style={styles.statusText}>{status}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.scanHeaderButton} onPress={handleScan}>
-          <Text style={styles.scanText}>{status === 'Scanning' ? '...' : 'SCAN'}</Text>
+          <Text style={styles.scanText}>
+            {status === 'Scanning' ? '...' : status === 'Connecting' ? '...' : 'SCAN'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingsButton} onPress={onNavigateToSettings}>
           <Text style={styles.settingsIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
 
-
       {/* Message List */}
       <FlatList
         ref={flatListRef}
         data={messages}
         renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
@@ -303,7 +371,7 @@ const ChatScreen = ({ onNavigateToSettings }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0B141B', // WhatsApp Dark Background
+    backgroundColor: '#0B141B',
   },
   header: {
     height: 60,
@@ -359,11 +427,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   myBubble: {
-    backgroundColor: '#005C4B', // WhatsApp Dark Me Bubble
+    backgroundColor: '#005C4B',
     borderTopRightRadius: 0,
   },
   theirBubble: {
-    backgroundColor: '#202C33', // WhatsApp Dark Their Bubble
+    backgroundColor: '#202C33',
     borderTopLeftRadius: 0,
   },
   messageText: {
@@ -411,7 +479,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#00A884', // WhatsApp Green
+    backgroundColor: '#00A884',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
@@ -434,7 +502,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-settingsButton: {
+  settingsButton: {
     padding: 8,
     marginLeft: 8,
   },

@@ -5,7 +5,18 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattServer;
+import android.bluetooth.BluetoothGattServerCallback;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.content.Context;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+
 import chatengine.Chatengine;
+import java.util.UUID;
 
 /**
  * ChatEngineModule bridges the Go core logic (chatengine.aar) to React Native.
@@ -13,6 +24,9 @@ import chatengine.Chatengine;
  */
 public class ChatEngineModule extends ReactContextBaseJavaModule {
     private final ReactApplicationContext reactContext;
+    private BluetoothGattServer gattServer;
+    private final UUID SERVICE_UUID = UUID.fromString("0000fee0-0000-1000-8000-00805f9b34fb");
+    private final UUID CHARACTERISTIC_UUID = UUID.fromString("0000fee1-0000-1000-8000-00805f9b34fb");
 
     public ChatEngineModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -164,12 +178,53 @@ public class ChatEngineModule extends ReactContextBaseJavaModule {
                 @Override
                 public void onStartSuccess(android.bluetooth.le.AdvertiseSettings settingsInEffect) {
                     super.onStartSuccess(settingsInEffect);
+                    setupGattServer();
                 }
             });
             promise.resolve("OK");
         } catch (Exception e) {
             promise.reject("E_ADV", e.getMessage());
         }
+    }
+
+    private void setupGattServer() {
+        BluetoothManager manager = (BluetoothManager) reactContext.getSystemService(Context.BLUETOOTH_SERVICE);
+        if (manager == null)
+            return;
+
+        gattServer = manager.openGattServer(reactContext, new BluetoothGattServerCallback() {
+            @Override
+            public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId,
+                    BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded,
+                    int offset, byte[] value) {
+                super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded,
+                        offset, value);
+
+                if (CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
+                    if (responseNeeded) {
+                        gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
+                    }
+
+                    // Emit data to React Native
+                    String receivedValue = new String(value);
+                    reactContext
+                            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                            .emit("onDataReceived", receivedValue);
+                }
+            }
+        });
+
+        if (gattServer == null)
+            return;
+
+        BluetoothGattService service = new BluetoothGattService(SERVICE_UUID,
+                BluetoothGattService.SERVICE_TYPE_PRIMARY);
+        BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(
+                CHARACTERISTIC_UUID,
+                BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                BluetoothGattCharacteristic.PERMISSION_WRITE);
+        service.addCharacteristic(characteristic);
+        gattServer.addService(service);
     }
 
     @ReactMethod
