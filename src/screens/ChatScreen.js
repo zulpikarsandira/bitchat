@@ -23,7 +23,7 @@ const { ChatEngine } = NativeModules;
 // Simulate a shared secret for Phase 1
 const SHARED_SECRET = 'bitchat-shared-secret-placeholder';
 
-const ChatScreen = () => {
+const ChatScreen = ({ onNavigateToSettings }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [status, setStatus] = useState('Offline'); // Scanning, Connected, Offline
@@ -252,6 +252,9 @@ const ChatScreen = () => {
         <TouchableOpacity style={styles.scanHeaderButton} onPress={handleScan}>
           <Text style={styles.scanText}>{status === 'Scanning' ? '...' : 'SCAN'}</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.settingsButton} onPress={onNavigateToSettings}>
+          <Text style={styles.settingsIcon}>⚙️</Text>
+        </TouchableOpacity>
       </View>
 
 
@@ -430,6 +433,13 @@ const styles = StyleSheet.create({
     color: '#E9EDEF',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+settingsButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  settingsIcon: {
+    fontSize: 22,
   },
 });
 
