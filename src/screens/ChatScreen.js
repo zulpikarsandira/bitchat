@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  settingsButton: {
+settingsButton: {
     padding: 8,
     marginLeft: 8,
   },
