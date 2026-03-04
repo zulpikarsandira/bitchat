@@ -23,7 +23,7 @@ const { ChatEngine } = NativeModules;
 // Simulate a shared secret for Phase 1
 const SHARED_SECRET = 'bitchat-shared-secret-placeholder';
 
-const ChatScreen = () => {
+const ChatScreen = ({ onNavigateToSettings }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [status, setStatus] = useState('Offline'); // Scanning, Connected, Offline
@@ -243,7 +243,7 @@ const ChatScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>BitChat Offline</Text>
+          <Text style={styles.headerTitle}>Locbit Offline</Text>
           <View style={styles.statusContainer}>
             <View style={[styles.statusDot, { backgroundColor: status === 'Connected' ? '#25D366' : status === 'Scanning' ? '#FFD700' : '#FF3B30' }]} />
             <Text style={styles.statusText}>{status}</Text>
@@ -251,6 +251,9 @@ const ChatScreen = () => {
         </View>
         <TouchableOpacity style={styles.scanHeaderButton} onPress={handleScan}>
           <Text style={styles.scanText}>{status === 'Scanning' ? '...' : 'SCAN'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingsButton} onPress={onNavigateToSettings}>
+          <Text style={styles.settingsIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
 
@@ -417,6 +420,26 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 24,
     marginLeft: 4,
+  },
+  scanHeaderButton: {
+    backgroundColor: '#00A884',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanText: {
+    color: '#E9EDEF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  settingsButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  settingsIcon: {
+    fontSize: 22,
   },
 });
 
