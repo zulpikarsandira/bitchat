@@ -212,12 +212,16 @@ const ChatScreen = ({ onNavigateToSettings }) => {
     const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
 
     try {
-      // 1. Encrypt via Go engine
-      const encrypted = await ChatEngine.encrypt(inputText, SHARED_SECRET);
-      console.log('Encrypted message from Go:', encrypted);
+      // 1. Buat packet terenkripsi lengkap {payload, checksum, type} lewat Go engine
+      const packetJSON = await ChatEngine.createPacket(inputText, SHARED_SECRET, 'MESSAGE');
+      if (packetJSON.startsWith('ERROR:')) {
+        console.error('createPacket error:', packetJSON);
+        return;
+      }
+      console.log('Packet JSON created, length:', packetJSON.length);
 
-      // 2. Fragment for BLE
-      const chunksStr = await ChatEngine.sliceData(encrypted);
+      // 2. Potong packet JSON untuk BLE (20 byte per chunk)
+      const chunksStr = await ChatEngine.sliceData(packetJSON);
       const chunks = JSON.parse(chunksStr);
       console.log(`Sliced into ${chunks.length} chunks for BLE transmission`);
 

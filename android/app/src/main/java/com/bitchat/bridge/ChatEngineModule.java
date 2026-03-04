@@ -50,6 +50,20 @@ public class ChatEngineModule extends ReactContextBaseJavaModule {
         return constants;
     }
 
+    /**
+     * Required by NativeEventEmitter in React Native 0.65+
+     * Without these, events emitted from Java won't reach JavaScript.
+     */
+    @ReactMethod
+    public void addListener(String eventName) {
+        // No-op: required by NativeEventEmitter
+    }
+
+    @ReactMethod
+    public void removeListeners(int count) {
+        // No-op: required by NativeEventEmitter
+    }
+
     @ReactMethod
     public void encrypt(String plaintext, String secret, Promise promise) {
         try {
