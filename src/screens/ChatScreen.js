@@ -170,6 +170,8 @@ const ChatScreen = ({ onNavigateToSettings }) => {
     try {
       setStatus('Connecting');
       console.log('Connecting to:', device.id);
+      // Hentikan scan dulu agar discovery loop berhenti
+      await BleManager.stopScan();
       await BleManager.connect(device.id);
       console.log('Connected to:', device.id);
       await BleManager.retrieveServices(device.id);
@@ -239,7 +241,11 @@ const ChatScreen = ({ onNavigateToSettings }) => {
       if (status === 'Connected' && devices.length > 0) {
         const deviceId = devices[0].id;
         for (const chunk of chunks) {
-          const bytes = Array.from(Buffer.from(chunk, 'utf8'));
+          // Konversi string ke byte array tanpa Buffer (tidak tersedia di Hermes)
+          const bytes = [];
+          for (let i = 0; i < chunk.length; i++) {
+            bytes.push(chunk.charCodeAt(i));
+          }
           await BleManager.write(deviceId, SERVICE_UUID, CHARACTERISTIC_UUID, bytes);
           console.log('Chunk sent:', chunk);
         }
