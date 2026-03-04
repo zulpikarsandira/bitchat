@@ -303,8 +303,7 @@ const ChatScreen = ({ onNavigateToSettings }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#111B21" />
-
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerInfo}>
@@ -384,7 +383,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B141B',
   },
   header: {
-    height: 60,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    minHeight: 60 + (Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0),
     backgroundColor: '#202C33',
     paddingHorizontal: 16,
     flexDirection: 'row',
@@ -473,17 +473,19 @@ const styles = StyleSheet.create({
   inputContainer: {
     flex: 1,
     backgroundColor: '#2A3942',
-    borderRadius: 25,
+    borderRadius: 24,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     marginRight: 8,
+    minHeight: 48,
     maxHeight: 120,
+    justifyContent: 'center',
   },
   input: {
     color: '#E9EDEF',
     fontSize: 16,
     padding: 0,
-    textAlignVertical: 'top',
+    textAlignVertical: 'center',
   },
   sendButton: {
     width: 48,
@@ -496,7 +498,7 @@ const styles = StyleSheet.create({
   },
   sendIcon: {
     color: 'white',
-    fontSize: 24,
+    fontSize: 18,
     marginLeft: 4,
   },
   scanHeaderButton: {
