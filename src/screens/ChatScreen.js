@@ -243,7 +243,7 @@ const ChatScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>BitChat Offline</Text>
+          <Text style={styles.headerTitle}>Locbit Offline</Text>
           <View style={styles.statusContainer}>
             <View style={[styles.statusDot, { backgroundColor: status === 'Connected' ? '#25D366' : status === 'Scanning' ? '#FFD700' : '#FF3B30' }]} />
             <Text style={styles.statusText}>{status}</Text>
@@ -417,6 +417,19 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 24,
     marginLeft: 4,
+  },
+  scanHeaderButton: {
+    backgroundColor: '#00A884',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanText: {
+    color: '#E9EDEF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
 
